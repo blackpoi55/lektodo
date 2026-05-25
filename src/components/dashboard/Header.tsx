@@ -50,15 +50,7 @@ export default function DashboardHeader({
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2">
-          <button
-            onClick={onAdd}
-            className="btn-primary hidden sm:inline-flex"
-            data-tooltip-id="tt"
-            data-tooltip-content="เพิ่มงานใหม่"
-          >
-            <Plus className="h-4 w-4" />
-            เพิ่มงาน
-          </button>
+       
 
           <Link
             href="/dashboard/report"
