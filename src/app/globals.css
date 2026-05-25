@@ -148,12 +148,20 @@ input[type='number'] {
   -moz-appearance: textfield;
 }
 
-/* Report A4 sheet (preview on screen) */
+/* Report A4 sheet — responsive on screen, fixed A4 in print */
 .report-sheet {
-  width: 210mm;
-  min-height: 297mm;
-  padding: 16mm 14mm 18mm;
+  width: 100%;
+  max-width: 100%;
+  padding: 4mm;
   box-sizing: border-box;
+}
+@media (min-width: 768px) {
+  .report-sheet {
+    width: 210mm;
+    max-width: 210mm;
+    min-height: 297mm;
+    padding: 16mm 14mm 18mm;
+  }
 }
 
 @page {

@@ -138,9 +138,10 @@ export default function ReportClient({
 }) {
   const today = new Date()
   const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+  const lastOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0)
 
   const [from, setFrom] = useState(toISO(firstOfMonth))
-  const [to, setTo] = useState(toISO(today))
+  const [to, setTo] = useState(toISO(lastOfMonth))
   const [mode, setMode] = useState<DateMode>('worked')
   const [group, setGroup] = useState<GroupMode>('day')
   const [status, setStatus] = useState<StatusFilter>('all')
@@ -222,7 +223,7 @@ export default function ReportClient({
         break
       case 'month':
         f = new Date(now.getFullYear(), now.getMonth(), 1)
-        t = now
+        t = new Date(now.getFullYear(), now.getMonth() + 1, 0)
         break
       case 'lastMonth':
         f = new Date(now.getFullYear(), now.getMonth() - 1, 1)
@@ -230,7 +231,7 @@ export default function ReportClient({
         break
       case 'year':
         f = new Date(now.getFullYear(), 0, 1)
-        t = now
+        t = new Date(now.getFullYear(), 11, 31)
         break
     }
     setFrom(toISO(f))
@@ -257,44 +258,48 @@ export default function ReportClient({
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 print:bg-white">
       {/* Toolbar - hidden when printing */}
       <div className="no-print sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur-xl pt-safe dark:border-white/10 dark:bg-slate-950/80">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-3 py-2.5 sm:px-6 sm:py-3">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <Link
               href="/dashboard"
-              className="grid h-9 w-9 place-items-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/15"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/15"
               aria-label="กลับ"
             >
               <ArrowLeft className="h-4 w-4" />
             </Link>
-            <div>
-              <h1 className="text-base font-bold text-slate-900 dark:text-white">
+            <div className="min-w-0">
+              <h1 className="truncate text-sm font-bold text-slate-900 dark:text-white sm:text-base">
                 ออกรายงาน (PDF)
               </h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="hidden truncate text-xs text-slate-500 sm:block dark:text-slate-400">
                 เลือกช่วงวันที่แล้วกดปุ่ม "พิมพ์ / บันทึก PDF"
               </p>
             </div>
           </div>
-          <button onClick={() => window.print()} className="btn-primary">
-            <Printer className="h-4 w-4" />
-            พิมพ์ / บันทึก PDF
+          <button
+            onClick={() => window.print()}
+            className="btn-primary shrink-0 !px-2.5 !py-1.5 !text-xs sm:!px-4 sm:!py-2 sm:!text-sm"
+          >
+            <Printer className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">พิมพ์ / บันทึก PDF</span>
+            <span className="sm:hidden">พิมพ์</span>
           </button>
         </div>
 
         {/* Filters */}
-        <div className="mx-auto max-w-5xl border-t border-slate-200 px-4 py-3 dark:border-white/10 sm:px-6">
+        <div className="mx-auto max-w-5xl border-t border-slate-200 px-3 py-2.5 dark:border-white/10 sm:px-6 sm:py-3">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1">
               <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
                 จากวันที่
               </label>
-              <ThaiDatePicker name="from" value={from} />
+              <ThaiDatePicker name="from" value={from} onChange={setFrom} />
             </div>
             <div className="space-y-1">
               <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
                 ถึงวันที่
               </label>
-              <ThaiDatePicker name="to" value={to} />
+              <ThaiDatePicker name="to" value={to} onChange={setTo} />
             </div>
             <div className="space-y-1">
               <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
@@ -390,7 +395,7 @@ export default function ReportClient({
       </div>
 
       {/* Report sheet (A4) */}
-      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 print:p-0 print:max-w-none">
+      <main className="mx-auto max-w-5xl px-2 py-4 sm:px-6 sm:py-6 print:p-0 print:max-w-none">
         <article className="report-sheet mx-auto bg-white text-slate-900 shadow-2xl shadow-slate-900/10 print:shadow-none">
           <div className="flex h-full flex-col">
             {/* === Modern Header with gradient accent === */}
@@ -485,8 +490,9 @@ export default function ReportClient({
                         <div className="ml-1 h-px flex-1 bg-gradient-to-r from-slate-200 to-transparent" />
                       </div>
                     )}
-                    <div className="overflow-hidden rounded-2xl ring-1 ring-slate-200/80 print:rounded-xl">
-                      <table className="w-full border-collapse text-[10.5px]">
+                    <div className="rounded-2xl ring-1 ring-slate-200/80 print:rounded-xl">
+                      <div className="overflow-x-auto rounded-2xl print:overflow-visible">
+                        <table className="w-full min-w-[640px] border-collapse text-[10.5px] print:min-w-0">
                         <thead>
                           <tr className="bg-gradient-to-r from-slate-50 to-slate-100 text-left text-[9px] font-bold uppercase tracking-wider text-slate-600">
                             <th className="w-8 px-3 py-2.5 text-center">#</th>
@@ -620,7 +626,8 @@ export default function ReportClient({
                             </tbody>
                           )
                         })}
-                      </table>
+                        </table>
+                      </div>
                     </div>
                   </section>
                 ))}
