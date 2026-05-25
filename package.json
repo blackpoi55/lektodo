@@ -4,10 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:clean": "node scripts/dev-clean.mjs",
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate",
+    "clean:next": "node scripts/clean-next.mjs",
+    "kill:dev": "node scripts/kill-dev-ports.mjs 3000 3001",
     "db:push": "prisma db push",
     "db:studio": "prisma studio"
   },

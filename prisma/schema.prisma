@@ -41,6 +41,7 @@ model Task {
   status      TaskStatus   @default(TODO)
   priority    TaskPriority @default(MEDIUM)
   progress    Int          @default(0)
+  startDate   DateTime?
   dueDate     DateTime?
   category    String?
   tags        String[]     @default([])
@@ -53,10 +54,24 @@ model Task {
   userId      String
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   subtasks    Subtask[]
+  logs        TaskLog[]
 
   @@index([userId])
   @@index([userId, status])
   @@map("tasks")
+}
+
+model TaskLog {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  date      DateTime
+  note      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([taskId, date])
+  @@map("task_logs")
 }
 
 model Subtask {

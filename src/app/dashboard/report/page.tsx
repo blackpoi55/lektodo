@@ -9,6 +9,7 @@ export default async function ReportPage() {
   const tasks = await prisma.task.findMany({
     where: { userId: session.userId },
     orderBy: { createdAt: 'desc' },
+    include: { logs: { orderBy: { date: 'desc' } } },
   })
 
   return (
@@ -23,11 +24,19 @@ export default async function ReportPage() {
         progress: t.progress,
         category: t.category,
         pinned: t.pinned,
+        startDate: t.startDate ? t.startDate.toISOString() : null,
         dueDate: t.dueDate ? t.dueDate.toISOString() : null,
         createdAt: t.createdAt.toISOString(),
         updatedAt: t.updatedAt.toISOString(),
         completedAt: t.completedAt ? t.completedAt.toISOString() : null,
         userId: t.userId,
+        logs: t.logs.map((l) => ({
+          id: l.id,
+          taskId: l.taskId,
+          date: l.date.toISOString(),
+          note: l.note,
+          createdAt: l.createdAt.toISOString(),
+        })),
       }))}
     />
   )

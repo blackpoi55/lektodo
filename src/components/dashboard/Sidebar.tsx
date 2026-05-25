@@ -1,6 +1,6 @@
 'use client'
 
-import { cn, formatDate, isOverdueAt } from '@/lib/utils'
+import { cn, formatDateShort, isOverdueAt } from '@/lib/utils'
 import { CalendarClock, ChevronRight, Sparkles } from 'lucide-react'
 import { useMemo } from 'react'
 import { PRIORITY_META, type TaskDTO } from './types'
@@ -13,13 +13,14 @@ export default function Sidebar({
   completion,
   onEdit,
 }: {
-  tasks: TaskDTO[]
+  tasks?: TaskDTO[]
   now: number
   completion: number
   onEdit: (t: TaskDTO) => void
 }) {
+  const taskList = Array.isArray(tasks) ? tasks : []
   const upcoming = useMemo(() => {
-    const arr = tasks
+    const arr = taskList
       .filter((t) => t.status !== 'DONE' && t.dueDate)
       .map((t) => ({
         ...t,
@@ -27,19 +28,19 @@ export default function Sidebar({
       }))
       .sort((a, b) => a.msLeft - b.msLeft)
     return arr
-  }, [tasks, now])
+  }, [taskList, now])
 
   const within3Days = upcoming.filter((t) => t.msLeft >= 0 && t.msLeft <= 3 * DAY).length
   const list = upcoming.slice(0, 6)
 
-  const doneCount = tasks.filter((t) => t.status === 'DONE').length
+  const doneCount = taskList.filter((t) => t.status === 'DONE').length
 
   return (
     <div className="space-y-3">
       {/* Top: 2 mini cards */}
       <div className="grid grid-cols-2 gap-3">
         <DeadlineCard count={within3Days} />
-        <ProgressCard percent={completion} done={doneCount} total={tasks.length} />
+        <ProgressCard percent={completion} done={doneCount} total={taskList.length} />
       </div>
 
       {/* Upcoming deadline list */}
@@ -79,7 +80,7 @@ export default function Sidebar({
                         {t.title}
                       </p>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        {formatDate(t.dueDate)}
+                        {formatDateShort(t.dueDate)}
                       </p>
                     </div>
                     <span

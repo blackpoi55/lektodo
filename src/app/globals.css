@@ -25,6 +25,15 @@ body {
   --fg: #e2e8f0;
 }
 
+.dark select.input {
+  color-scheme: dark;
+}
+
+.dark select.input option {
+  background: #ffffff;
+  color: #0f172a;
+}
+
 @layer components {
   .glass {
     @apply bg-white/70 backdrop-blur-xl border border-white/40 shadow-xl shadow-indigo-500/5

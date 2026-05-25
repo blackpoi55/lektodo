@@ -1,6 +1,6 @@
 'use client'
 
-import { Tooltip } from 'react-tooltip'
+import dynamic from 'next/dynamic'
 import { useEffect, useMemo, useState } from 'react'
 import DashboardHeader from './Header'
 import StatsBar from './StatsBar'
@@ -10,6 +10,11 @@ import Sidebar from './Sidebar'
 import { progressForStatus, type TaskDTO } from './types'
 import { isOverdueAt } from '@/lib/utils'
 
+const Tooltip = dynamic(
+  () => import('react-tooltip').then((mod) => mod.Tooltip),
+  { ssr: false },
+)
+
 function isSameDay(a: Date, b: Date) {
   return (
     a.getFullYear() === b.getFullYear() &&
@@ -18,18 +23,26 @@ function isSameDay(a: Date, b: Date) {
   )
 }
 
-export default function DashboardClient({
-  serverNow,
-  user,
-  tasks,
-  initialTasks,
-}: {
+type DashboardClientProps = {
   serverNow: number
   user: { name: string; email: string }
   tasks?: TaskDTO[]
   initialTasks?: TaskDTO[]
-}) {
-  const taskList = tasks ?? initialTasks ?? []
+}
+
+export default function DashboardClient(rawProps?: Partial<DashboardClientProps>) {
+  const props = rawProps ?? {}
+  const {
+    serverNow = 0,
+    user = { name: '', email: '' },
+    tasks,
+    initialTasks,
+  } = props
+  const taskList = Array.isArray(tasks)
+    ? tasks
+    : Array.isArray(initialTasks)
+      ? initialTasks
+      : []
   const [now, setNow] = useState(serverNow)
   const [showAdd, setShowAdd] = useState(false)
   const [editing, setEditing] = useState<TaskDTO | null>(null)
@@ -95,13 +108,21 @@ export default function DashboardClient({
               accent="amber"
             />
 
+            <div className="lg:hidden">
+              <Sidebar
+                tasks={taskList}
+                now={now}
+                completion={completion}
+                onEdit={(t) => setEditing(t)}
+              />
+            </div>
+
             <TaskTable
               title="รายการงานทั้งหมด"
               tasks={taskList}
               now={now}
               onEdit={(t) => setEditing(t)}
               onAdd={() => setShowAdd(true)}
-              showCreated
               showDaysLeft
               showProgress
               emptyText="ยังไม่มีงาน — กดปุ่ม + เพื่อเพิ่มงานแรก"
@@ -109,7 +130,7 @@ export default function DashboardClient({
             />
           </div>
 
-          <aside className="lg:sticky lg:top-24 lg:self-start">
+          <aside className="hidden lg:sticky lg:top-24 lg:self-start lg:block">
             <Sidebar
               tasks={taskList}
               now={now}

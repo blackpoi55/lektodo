@@ -8,11 +8,12 @@ import {
   CheckCircle2,
   Clock,
   ListChecks,
+  NotebookPen,
   Printer,
   TrendingUp,
 } from 'lucide-react'
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { PRIORITY_META, STATUS_META, progressForStatus, type TaskDTO } from '../types'
 
 type DateMode = 'created' | 'completed' | 'due'
@@ -33,6 +34,20 @@ const TH_MONTHS = [
   'พฤศจิกายน',
   'ธันวาคม',
 ]
+
+const REPORT_PRIORITY_CHIP: Record<keyof typeof PRIORITY_META, string> = {
+  LOW: 'bg-sky-100 text-sky-800',
+  MEDIUM: 'bg-amber-100 text-amber-800',
+  HIGH: 'bg-orange-100 text-orange-800',
+  URGENT: 'bg-rose-100 text-rose-800',
+}
+
+const REPORT_STATUS_CHIP: Record<keyof typeof STATUS_META, string> = {
+  TODO: 'bg-slate-100 text-slate-800',
+  IN_PROGRESS: 'bg-amber-100 text-amber-800',
+  FOLLOW_UP: 'bg-violet-100 text-violet-800',
+  DONE: 'bg-emerald-100 text-emerald-800',
+}
 
 function toISO(d: Date) {
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -71,6 +86,7 @@ export default function ReportClient({
   const [mode, setMode] = useState<DateMode>('created')
   const [group, setGroup] = useState<GroupMode>('day')
   const [status, setStatus] = useState<StatusFilter>('all')
+  const [showLogs, setShowLogs] = useState(true)
   const [printedAt] = useState(() => new Date())
 
   const fromD = startOfDay(from)
@@ -280,6 +296,17 @@ export default function ReportClient({
                   {l}
                 </button>
               ))}
+
+              <label className="ml-2 flex cursor-pointer items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/15">
+                <input
+                  type="checkbox"
+                  checked={showLogs}
+                  onChange={(e) => setShowLogs(e.target.checked)}
+                  className="h-3.5 w-3.5 rounded border-slate-300 text-brand-500 focus:ring-brand-500"
+                />
+                <NotebookPen className="h-3 w-3" />
+                แสดงบันทึก
+              </label>
             </div>
           </div>
         </div>
@@ -369,62 +396,107 @@ export default function ReportClient({
                       {g.tasks.map((t, i) => {
                         const status = STATUS_META[t.status]
                         const prio = PRIORITY_META[t.priority]
+                        const logsInRange = showLogs
+                          ? (t.logs ?? [])
+                              .filter((log) => {
+                                const ld = new Date(log.date)
+                                if (fromD && ld < fromD) return false
+                                if (toD && ld > toD) return false
+                                return true
+                              })
+                              .sort(
+                                (a, b) =>
+                                  new Date(a.date).getTime() - new Date(b.date).getTime(),
+                              )
+                          : []
                         return (
-                          <tr
-                            key={t.id}
-                            className="border-b border-slate-200 align-top"
-                          >
-                            <td className="px-2 py-1.5 text-center font-bold text-slate-500">
-                              {i + 1}
-                            </td>
-                            <td className="px-2 py-1.5">
-                              <p
-                                className={cn(
-                                  'font-medium text-slate-900',
-                                  t.status === 'DONE' && 'line-through text-slate-500',
-                                )}
-                              >
-                                {t.title}
-                              </p>
-                              {t.description && (
-                                <p className="mt-0.5 line-clamp-2 text-[10px] text-slate-500">
-                                  {t.description}
-                                </p>
+                          <Fragment key={t.id}>
+                            <tr
+                              className={cn(
+                                'border-b border-slate-200 align-top',
+                                logsInRange.length > 0 && 'border-b-0',
                               )}
-                            </td>
-                            <td className="px-2 py-1.5 text-slate-700">
-                              {t.category || '—'}
-                            </td>
-                            <td className="px-2 py-1.5">
-                              <span
-                                className={cn(
-                                  'inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold',
-                                  prio.chip,
+                            >
+                              <td className="px-2 py-1.5 text-center font-bold text-slate-500">
+                                {i + 1}
+                              </td>
+                              <td className="px-2 py-1.5">
+                                <p
+                                  className={cn(
+                                    'font-medium text-slate-900',
+                                    t.status === 'DONE' && 'line-through text-slate-500',
+                                  )}
+                                >
+                                  {t.title}
+                                </p>
+                                {t.description && (
+                                  <p className="mt-0.5 line-clamp-2 text-[10px] text-slate-500">
+                                    {t.description}
+                                  </p>
                                 )}
-                              >
-                                {prio.label}
-                              </span>
-                            </td>
-                            <td className="px-2 py-1.5 text-slate-700">
-                              {t.dueDate ? formatDate(t.dueDate) : '—'}
-                            </td>
-                            <td className="px-2 py-1.5 text-slate-700">
-                              {t.completedAt ? formatDate(t.completedAt) : '—'}
-                            </td>
-                            <td className="px-2 py-1.5">
-                              <span
-                                className={cn(
-                                  'inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold',
-                                  status.chip,
-                                )}
-                              >
-                                {status.label}
-                              </span>
-                            </td>
-                            <td className="px-2 py-1.5 text-right font-bold text-slate-700">
-                              {progressForStatus(t.status)}%
-                            </td>
-                          </tr>
+                              </td>
+                              <td className="px-2 py-1.5 text-slate-700">
+                                {t.category || '—'}
+                              </td>
+                              <td className="px-2 py-1.5">
+                                <span
+                                  className={cn(
+                                    'inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold',
+                                    REPORT_PRIORITY_CHIP[t.priority],
+                                  )}
+                                >
+                                  {prio.label}
+                                </span>
+                              </td>
+                              <td className="px-2 py-1.5 text-slate-700">
+                                {t.dueDate ? formatDate(t.dueDate) : '—'}
+                              </td>
+                              <td className="px-2 py-1.5 text-slate-700">
+                                {t.completedAt ? formatDate(t.completedAt) : '—'}
+                              </td>
+                              <td className="px-2 py-1.5">
+                                <span
+                                  className={cn(
+                                    'inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold',
+                                    REPORT_STATUS_CHIP[t.status],
+                                  )}
+                                >
+                                  {status.label}
+                                </span>
+                              </td>
+                              <td className="px-2 py-1.5 text-right font-bold text-slate-700">
+                                {progressForStatus(t.status)}%
+                              </td>
+                            </tr>
+                            {logsInRange.length > 0 && (
+                              <tr className="border-b border-slate-200">
+                                <td></td>
+                                <td colSpan={7} className="px-2 pb-2 pt-0">
+                                  <div className="ml-1 rounded-md border-l-2 border-brand-300 bg-brand-50/40 px-3 py-1.5 print:bg-white">
+                                    <p className="mb-1 flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-brand-700">
+                                      <NotebookPen className="h-2.5 w-2.5" />
+                                      บันทึก ({logsInRange.length})
+                                    </p>
+                                    <ul className="space-y-0.5">
+                                      {logsInRange.map((log) => (
+                                        <li
+                                          key={log.id}
+                                          className="flex gap-1.5 text-[10px] leading-snug"
+                                        >
+                                          <span className="shrink-0 font-bold text-brand-700">
+                                            {formatDate(log.date)} —
+                                          </span>
+                                          <span className="text-slate-700 whitespace-pre-wrap">
+                                            {log.note}
+                                          </span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
                         )
                       })}
                     </tbody>

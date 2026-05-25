@@ -1,5 +1,13 @@
 import type { TaskPriority, TaskStatus } from '@prisma/client'
 
+export type TaskLogDTO = {
+  id: string
+  taskId: string
+  date: string
+  note: string
+  createdAt: string
+}
+
 export type TaskDTO = {
   id: string
   title: string
@@ -9,11 +17,13 @@ export type TaskDTO = {
   progress: number
   category: string | null
   pinned: boolean
+  startDate: string | null
   dueDate: string | null
   completedAt: string | null
   createdAt: string
   updatedAt: string
   userId: string
+  logs: TaskLogDTO[]
 }
 
 export const STATUS_PROGRESS: Record<TaskStatus, number> = {

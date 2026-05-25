@@ -25,6 +25,8 @@ export const viewport: Viewport = {
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const isProd = process.env.NODE_ENV === 'production'
+
   return (
     <html lang="th" suppressHydrationWarning>
       <head>
@@ -40,9 +42,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 const sys = window.matchMedia('(prefers-color-scheme: dark)').matches;
                 if (saved === 'dark' || (!saved && sys)) document.documentElement.classList.add('dark');
               } catch (e) {}
-              if ('serviceWorker' in navigator) {
+              const isProd = ${JSON.stringify(isProd)};
+              if (isProd && 'serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
                   navigator.serviceWorker.register('/sw.js').catch(() => {});
+                });
+              } else if (!isProd && 'serviceWorker' in navigator) {
+                window.addEventListener('load', async () => {
+                  try {
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(regs.map((reg) => reg.unregister()));
+                    if ('caches' in window) {
+                      const keys = await caches.keys();
+                      await Promise.all(keys.map((key) => caches.delete(key)));
+                    }
+                  } catch (e) {}
                 });
               }
             `,

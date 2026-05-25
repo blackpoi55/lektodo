@@ -60,6 +60,7 @@ type Props = {
   name: string
   value?: string | null
   defaultValue?: string | null
+  onChange?: (value: string) => void
   placeholder?: string
   className?: string
 }
@@ -68,6 +69,7 @@ export default function ThaiDatePicker({
   name,
   value,
   defaultValue,
+  onChange,
   placeholder = 'เลือกวันที่',
   className,
 }: Props) {
@@ -147,18 +149,23 @@ export default function ThaiDatePicker({
 
   const pickDay = (day: number) => {
     const d = new Date(year, month, day)
-    setInternal(toISODate(d))
+    const iso = toISODate(d)
+    setInternal(iso)
+    onChange?.(iso)
     setOpen(false)
     setYearView(false)
   }
 
   const clear = () => {
     setInternal('')
+    onChange?.('')
   }
 
   const setToday = () => {
     const d = new Date()
-    setInternal(toISODate(d))
+    const iso = toISODate(d)
+    setInternal(iso)
+    onChange?.(iso)
     setViewDate(d)
     setOpen(false)
   }

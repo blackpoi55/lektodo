@@ -16,6 +16,8 @@ import {
   type TaskDTO,
 } from './types'
 
+const DEFAULT_CATEGORY = 'งาน'
+
 export default function TaskFormModal({
   open,
   onClose,
@@ -48,7 +50,9 @@ export default function TaskFormModal({
 
   if (!open) return null
 
-  const dueDateValue = task?.dueDate ? toDateOnly(task.dueDate) : ''
+  const categoryValue = task?.category ?? DEFAULT_CATEGORY
+  const startDateValue = task?.startDate ? toDateOnly(task.startDate) : toLocalDateOnly(new Date())
+  const dueDateValue = task?.dueDate ? toDateOnly(task.dueDate) : toLocalDateOnly(new Date())
 
   const onSubmit = (formData: FormData) => {
     formData.set('status', status)
@@ -118,12 +122,23 @@ export default function TaskFormModal({
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 ประเภทงาน
               </label>
-              <CategorySelect name="category" defaultValue={task?.category ?? ''} />
+              <CategorySelect name="category" defaultValue={categoryValue} />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                วันเริ่ม
+              </label>
+              <ThaiDatePicker
+                name="startDate"
+                defaultValue={startDateValue}
+                placeholder="เลือกวันเริ่ม"
+              />
             </div>
 
             <div className="space-y-1.5">
@@ -133,7 +148,7 @@ export default function TaskFormModal({
               <ThaiDatePicker name="dueDate" defaultValue={dueDateValue} placeholder="เลือกวันที่" />
             </div>
 
-            <div className="space-y-1.5 sm:col-span-2">
+            <div className="space-y-1.5 sm:col-span-3">
               <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 ความสำคัญ
               </label>
@@ -156,7 +171,7 @@ export default function TaskFormModal({
               </div>
             </div>
 
-            <div className="space-y-1.5 sm:col-span-2">
+            <div className="space-y-1.5 sm:col-span-3">
               <label className="flex items-center justify-between text-sm font-medium text-slate-700 dark:text-slate-300">
                 <span>สถานะ</span>
                 <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-bold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
@@ -212,6 +227,10 @@ export default function TaskFormModal({
 
 function toDateOnly(iso: string) {
   const d = new Date(iso)
+  return toLocalDateOnly(d)
+}
+
+function toLocalDateOnly(d: Date) {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }

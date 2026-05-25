@@ -20,11 +20,33 @@ const TH_MONTHS_FULL = [
   '\u0e18\u0e31\u0e19\u0e27\u0e32\u0e04\u0e21',
 ]
 
+const TH_MONTHS_SHORT = [
+  '\u0e21.\u0e04.',
+  '\u0e01.\u0e1e.',
+  '\u0e21\u0e35.\u0e04.',
+  '\u0e40\u0e21.\u0e22.',
+  '\u0e1e.\u0e04.',
+  '\u0e21\u0e34.\u0e22.',
+  '\u0e01.\u0e04.',
+  '\u0e2a.\u0e04.',
+  '\u0e01.\u0e22.',
+  '\u0e15.\u0e04.',
+  '\u0e1e.\u0e22.',
+  '\u0e18.\u0e04.',
+]
+
 export function formatDate(date: Date | string | null | undefined) {
   if (!date) return ''
   const d = new Date(date)
   if (isNaN(d.getTime())) return ''
   return `${d.getDate()} ${TH_MONTHS_FULL[d.getMonth()]} ${d.getFullYear() + 543}`
+}
+
+export function formatDateShort(date: Date | string | null | undefined) {
+  if (!date) return ''
+  const d = new Date(date)
+  if (isNaN(d.getTime())) return ''
+  return `${d.getDate()} ${TH_MONTHS_SHORT[d.getMonth()]} ${d.getFullYear() + 543}`
 }
 
 export function formatDateTime(date: Date | string | null | undefined) {
