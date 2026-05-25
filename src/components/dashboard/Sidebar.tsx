@@ -2,7 +2,7 @@
 
 import { cn, formatDateShort, isOverdueAt } from '@/lib/utils'
 import { CalendarClock, ChevronRight, Sparkles } from 'lucide-react'
-import { useMemo } from 'react'
+import { useId, useMemo } from 'react'
 import { PRIORITY_META, type TaskDTO } from './types'
 
 const DAY = 86400000
@@ -168,10 +168,16 @@ export function Donut({
   stroke?: number
   showLabel?: boolean
 }) {
+  // useId() returns a unique id per component instance — avoids SVG <defs>
+  // collisions when the same Donut is rendered in multiple places on a page
+  // (e.g. two Sidebars: one display:none + one visible). With duplicate IDs,
+  // browsers fall back to the first <linearGradient>, which inside a hidden
+  // container won't paint — causing the gradient to "disappear".
+  const rawId = useId()
+  const gradId = `donut-grad-${rawId.replace(/[^a-zA-Z0-9]/g, '')}`
   const radius = (size - stroke) / 2
   const c = 2 * Math.PI * radius
   const off = c * (1 - Math.max(0, Math.min(100, percent)) / 100)
-  const gradId = `donut-grad-${size}`
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
