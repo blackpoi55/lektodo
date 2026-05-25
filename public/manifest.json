@@ -1,0 +1,30 @@
+{
+  "name": "LekToDo — จัดการงานของคุณ",
+  "short_name": "LekToDo",
+  "description": "แอป To-Do สวยงามทันสมัย ใช้งานง่าย รองรับทั้งคอมและมือถือ",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b1020",
+  "theme_color": "#6366f1",
+  "lang": "th",
+  "dir": "ltr",
+  "categories": ["productivity", "lifestyle", "utilities"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "เพิ่มงานใหม่",
+      "short_name": "เพิ่มงาน",
+      "url": "/dashboard?new=1",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    }
+  ]
+}

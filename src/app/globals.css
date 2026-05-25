@@ -1,0 +1,171 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light dark;
+  --bg: #f7f7fb;
+  --fg: #0f172a;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-feature-settings: 'cv11', 'ss01', 'ss03';
+  -webkit-font-smoothing: antialiased;
+}
+
+.dark {
+  --bg: #0b1020;
+  --fg: #e2e8f0;
+}
+
+@layer components {
+  .glass {
+    @apply bg-white/70 backdrop-blur-xl border border-white/40 shadow-xl shadow-indigo-500/5
+           dark:bg-slate-900/60 dark:border-white/10 dark:shadow-black/40;
+  }
+  .glass-soft {
+    @apply bg-white/60 backdrop-blur-md border border-white/40
+           dark:bg-slate-900/50 dark:border-white/10;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium
+           transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-primary {
+    @apply btn bg-gradient-brand text-white shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50;
+  }
+  .btn-ghost {
+    @apply btn text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/5;
+  }
+  .btn-outline {
+    @apply btn border border-slate-200 bg-white/70 text-slate-700 hover:bg-slate-50
+           dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10;
+  }
+  .input {
+    @apply w-full rounded-xl border border-slate-200 bg-white/80 px-4 py-2.5 text-sm text-slate-900
+           placeholder:text-slate-400 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20
+           dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:placeholder:text-slate-500;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.35);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.55);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Range slider styling */
+input[type='range'].range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(to right, #6366f1 var(--val, 0%), #e2e8f0 var(--val, 0%));
+  outline: none;
+}
+.dark input[type='range'].range {
+  background: linear-gradient(to right, #818cf8 var(--val, 0%), rgba(255, 255, 255, 0.1) var(--val, 0%));
+}
+input[type='range'].range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: white;
+  border: 3px solid #6366f1;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.4);
+  transition: transform 0.1s ease;
+}
+input[type='range'].range::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+input[type='range'].range::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: white;
+  border: 3px solid #6366f1;
+  cursor: pointer;
+}
+
+/* Hide arrows on number inputs */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+/* Report A4 sheet */
+.report-sheet {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 14mm 12mm;
+  box-sizing: border-box;
+}
+
+@page {
+  size: A4 portrait;
+  margin: 10mm;
+}
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  body {
+    background-image: none !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .report-sheet {
+    box-shadow: none !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+  }
+  /* avoid page break inside cards/sections */
+  table {
+    page-break-inside: auto;
+  }
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  thead {
+    display: table-header-group;
+  }
+  tfoot {
+    display: table-footer-group;
+  }
+  .break-inside-avoid {
+    page-break-inside: avoid;
+  }
+}
