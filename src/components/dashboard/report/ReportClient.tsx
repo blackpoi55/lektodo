@@ -256,7 +256,7 @@ export default function ReportClient({
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 print:bg-white">
       {/* Toolbar - hidden when printing */}
-      <div className="no-print sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/80">
+      <div className="no-print sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur-xl pt-safe dark:border-white/10 dark:bg-slate-950/80">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
             <Link

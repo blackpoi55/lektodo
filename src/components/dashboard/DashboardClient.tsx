@@ -65,7 +65,7 @@ export default function DashboardClient(rawProps?: Partial<DashboardClientProps>
     <div className="min-h-screen">
       <DashboardHeader user={user} onAdd={() => setShowAdd(true)} />
 
-      <main className="mx-auto w-full max-w-7xl px-4 pb-28 pt-4 sm:px-6 sm:pb-12 sm:pt-6 space-y-5">
+      <main className="mx-auto w-full max-w-7xl px-4 pb-28 pt-4 pb-safe sm:px-6 sm:pb-12 sm:pt-6 space-y-5">
         <StatsBar
           total={stats.total}
           done={stats.done}
@@ -113,7 +113,7 @@ export default function DashboardClient(rawProps?: Partial<DashboardClientProps>
       {/* Floating add button */}
       <button
         onClick={() => setShowAdd(true)}
-        className="fixed bottom-6 right-6 z-30 grid h-14 w-14 place-items-center rounded-full bg-gradient-brand text-white shadow-2xl shadow-indigo-500/40 transition active:scale-95 sm:bottom-8 sm:right-8"
+        className="fixed right-6 z-30 grid h-14 w-14 place-items-center rounded-full bg-gradient-brand text-white shadow-2xl shadow-indigo-500/40 transition active:scale-95 sm:right-8 bottom-safe"
         data-tooltip-id="tt"
         data-tooltip-content="เพิ่มงานใหม่"
         aria-label="เพิ่มงานใหม่"

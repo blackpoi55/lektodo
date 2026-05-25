@@ -33,7 +33,7 @@ export default function DashboardHeader({
   }
 
   return (
-    <header className="sticky top-0 z-20 border-b border-white/40 bg-white/70 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/60">
+    <header className="sticky top-0 z-20 border-b border-white/40 bg-white/70 backdrop-blur-xl pt-safe dark:border-white/10 dark:bg-slate-950/60">
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
         <div className="flex items-center gap-3 min-w-0">
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-brand text-white shadow-lg shadow-indigo-500/30">
