@@ -1,22 +1,18 @@
 'use client'
 
 import ThaiDatePicker from '@/components/ui/ThaiDatePicker'
-import { cn, formatDate, formatDateTime } from '@/lib/utils'
+import { cn, formatDate, formatDateShort } from '@/lib/utils'
 import {
   ArrowLeft,
-  CalendarRange,
-  CheckCircle2,
-  Clock,
-  ListChecks,
+  CheckSquare,
   NotebookPen,
   Printer,
-  TrendingUp,
 } from 'lucide-react'
 import Link from 'next/link'
-import { Fragment, useMemo, useState } from 'react'
-import { PRIORITY_META, STATUS_META, progressForStatus, type TaskDTO } from '../types'
+import { useMemo, useState } from 'react'
+import { STATUS_META, progressForStatus, type TaskDTO } from '../types'
 
-type DateMode = 'created' | 'completed' | 'due'
+type DateMode = 'worked' | 'start' | 'completed' | 'due'
 type GroupMode = 'none' | 'day' | 'month'
 type StatusFilter = 'all' | 'done' | 'pending'
 
@@ -35,18 +31,19 @@ const TH_MONTHS = [
   'ธันวาคม',
 ]
 
-const REPORT_PRIORITY_CHIP: Record<keyof typeof PRIORITY_META, string> = {
-  LOW: 'bg-sky-100 text-sky-800',
-  MEDIUM: 'bg-amber-100 text-amber-800',
-  HIGH: 'bg-orange-100 text-orange-800',
-  URGENT: 'bg-rose-100 text-rose-800',
+const REPORT_STATUS_CHIP: Record<keyof typeof STATUS_META, string> = {
+  TODO: 'bg-slate-50 text-slate-700 ring-1 ring-slate-200',
+  IN_PROGRESS: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+  FOLLOW_UP: 'bg-violet-50 text-violet-700 ring-1 ring-violet-200',
+  DONE: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
 }
 
-const REPORT_STATUS_CHIP: Record<keyof typeof STATUS_META, string> = {
-  TODO: 'bg-slate-100 text-slate-800',
-  IN_PROGRESS: 'bg-amber-100 text-amber-800',
-  FOLLOW_UP: 'bg-violet-100 text-violet-800',
-  DONE: 'bg-emerald-100 text-emerald-800',
+function formatDateTimeShort(date: Date | string | null | undefined) {
+  if (!date) return ''
+  const d = new Date(date)
+  if (isNaN(d.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${formatDateShort(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 function toISO(d: Date) {
@@ -65,10 +62,71 @@ function endOfDay(s: string) {
   return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 23, 59, 59, 999)
 }
 
-function pickDate(t: TaskDTO, mode: DateMode): string | null {
-  if (mode === 'created') return t.createdAt
+function isDateInRange(
+  date: string | null | undefined,
+  fromD: Date | null,
+  toD: Date | null,
+) {
+  if (!date) return false
+  const d = new Date(date)
+  if (isNaN(d.getTime())) return false
+  if (fromD && d < fromD) return false
+  if (toD && d > toD) return false
+  return true
+}
+
+function pickDate(
+  t: TaskDTO,
+  mode: DateMode,
+  fromD: Date | null,
+  toD: Date | null,
+): string | null {
+  if (mode === 'worked') {
+    // Prefer first log inside range
+    const matchedLog = (t.logs ?? [])
+      .filter((log) => isDateInRange(log.date, fromD, toD))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0]
+    if (matchedLog) return matchedLog.date
+
+    // No log in range — use the task's working-period anchor.
+    // anchor = max(startDate ?? createdAt, fromD) so the task is placed at the
+    // beginning of its overlap with the selected range, not at a date outside it.
+    const startSrc = t.startDate ?? t.createdAt
+    if (!startSrc) return null
+    const start = new Date(startSrc).getTime()
+    const anchor = fromD ? Math.max(start, fromD.getTime()) : start
+    return new Date(anchor).toISOString()
+  }
+  if (mode === 'start') return t.startDate
   if (mode === 'completed') return t.completedAt
   return t.dueDate
+}
+
+// For mode='worked': task is "active" if its working period
+// [start, end] overlaps the filter window [fromD, toD],
+// OR it has a log inside the window.
+function isTaskWorkedInRange(
+  t: TaskDTO,
+  fromD: Date | null,
+  toD: Date | null,
+): boolean {
+  // Logs in range — already counts
+  if ((t.logs ?? []).some((log) => isDateInRange(log.date, fromD, toD))) return true
+
+  // Period overlap: start ≤ toD AND (end ≥ fromD or end is null)
+  const startSrc = t.startDate ?? t.createdAt
+  if (!startSrc) return false
+  const start = new Date(startSrc).getTime()
+
+  // end = explicit due > completed > createdAt → if task still active, treat as far future
+  let end: number | null = null
+  if (t.dueDate) end = new Date(t.dueDate).getTime()
+  else if (t.completedAt) end = new Date(t.completedAt).getTime()
+  // if neither, treat as ongoing (infinite future)
+
+  if (toD && start > toD.getTime()) return false
+  if (fromD && end !== null && end < fromD.getTime()) return false
+  return true
 }
 
 export default function ReportClient({
@@ -83,7 +141,7 @@ export default function ReportClient({
 
   const [from, setFrom] = useState(toISO(firstOfMonth))
   const [to, setTo] = useState(toISO(today))
-  const [mode, setMode] = useState<DateMode>('created')
+  const [mode, setMode] = useState<DateMode>('worked')
   const [group, setGroup] = useState<GroupMode>('day')
   const [status, setStatus] = useState<StatusFilter>('all')
   const [showLogs, setShowLogs] = useState(true)
@@ -96,12 +154,16 @@ export default function ReportClient({
     return tasks.filter((t) => {
       if (status === 'done' && t.status !== 'DONE') return false
       if (status === 'pending' && t.status === 'DONE') return false
-      const dateStr = pickDate(t, mode)
+
+      // "วันที่ทำงาน" mode: include task if its work period overlaps the range,
+      // or any log falls in the range — even without notes.
+      if (mode === 'worked') {
+        return isTaskWorkedInRange(t, fromD, toD)
+      }
+
+      const dateStr = pickDate(t, mode, fromD, toD)
       if (!dateStr) return false
-      const d = new Date(dateStr)
-      if (fromD && d < fromD) return false
-      if (toD && d > toD) return false
-      return true
+      return isDateInRange(dateStr, fromD, toD)
     })
   }, [tasks, mode, status, fromD, toD])
 
@@ -125,7 +187,7 @@ export default function ReportClient({
     if (group === 'none') return [{ label: '', tasks: filtered }]
     const map = new Map<string, { label: string; tasks: TaskDTO[]; sortKey: string }>()
     filtered.forEach((t) => {
-      const ds = pickDate(t, mode)
+      const ds = pickDate(t, mode, fromD, toD)
       if (!ds) return
       const d = new Date(ds)
       let key: string
@@ -175,7 +237,21 @@ export default function ReportClient({
     setTo(toISO(t))
   }
 
-  const modeLabel = mode === 'created' ? 'วันที่เพิ่ม' : mode === 'completed' ? 'วันที่เสร็จ' : 'วันที่ Deadline'
+  const modeLabel =
+    mode === 'worked'
+      ? '\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48\u0e17\u0e33\u0e07\u0e32\u0e19'
+      : mode === 'start'
+        ? '\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48\u0e40\u0e23\u0e34\u0e48\u0e21'
+        : mode === 'completed'
+          ? '\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48\u0e40\u0e2a\u0e23\u0e47\u0e08'
+          : '\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48 Deadline'
+
+  // Stable document reference per print render — RPT-DDMMYYYY-HHMM
+  const docRef = useMemo(() => {
+    const d = printedAt
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `RPT-${pad(d.getDate())}${pad(d.getMonth() + 1)}${d.getFullYear() + 543}-${pad(d.getHours())}${pad(d.getMinutes())}`
+  }, [printedAt])
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 print:bg-white">
@@ -229,9 +305,10 @@ export default function ReportClient({
                 onChange={(e) => setMode(e.target.value as DateMode)}
                 className="input py-2 text-sm"
               >
-                <option value="created">วันที่เพิ่มงาน</option>
-                <option value="completed">วันที่เสร็จ</option>
-                <option value="due">วันที่ Deadline</option>
+                <option value="worked">{'\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48\u0e17\u0e33\u0e07\u0e32\u0e19'}</option>
+                <option value="start">{'\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48\u0e40\u0e23\u0e34\u0e48\u0e21'}</option>
+                <option value="completed">{'\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48\u0e40\u0e2a\u0e23\u0e47\u0e08'}</option>
+                <option value="due">{'\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48 Deadline'}</option>
               </select>
             </div>
             <div className="space-y-1">
@@ -314,232 +391,323 @@ export default function ReportClient({
 
       {/* Report sheet (A4) */}
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 print:p-0 print:max-w-none">
-        <article className="report-sheet mx-auto bg-white text-slate-900 shadow-xl print:shadow-none">
-          {/* Header */}
-          <header className="border-b-2 border-slate-900/10 pb-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-brand-600">
-                  Smart To-Do List · รายงาน
-                </p>
-                <h1 className="mt-1 text-2xl font-bold">รายงานสรุปงาน</h1>
-                <p className="mt-1 text-sm text-slate-600">
-                  ผู้ใช้: <span className="font-semibold">{user.name}</span> · {user.email}
-                </p>
+        <article className="report-sheet mx-auto bg-white text-slate-900 shadow-2xl shadow-slate-900/10 print:shadow-none">
+          <div className="flex h-full flex-col">
+            {/* === Modern Header with gradient accent === */}
+            <header className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-50 via-white to-pink-50 p-6 print:rounded-2xl">
+              {/* Decorative gradient bar */}
+              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-indigo-500 via-violet-500 to-pink-500" />
+              <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-gradient-to-br from-indigo-200/40 to-pink-200/40 blur-2xl" />
+
+              <div className="relative flex items-start justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-indigo-500 via-violet-500 to-pink-500 text-white shadow-lg shadow-indigo-500/40">
+                    <CheckSquare className="h-7 w-7" strokeWidth={2.5} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-indigo-600">
+                      Smart To-Do List
+                    </p>
+                    <h1 className="mt-0.5 bg-gradient-to-r from-slate-900 via-indigo-900 to-slate-900 bg-clip-text text-3xl font-extrabold leading-tight tracking-tight text-transparent">
+                      รายงานสรุปงาน
+                    </h1>
+                    <p className="text-[11px] font-medium tracking-wider text-slate-500">
+                      Task Summary Report
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="inline-block rounded-full bg-white/80 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-indigo-600 shadow-sm ring-1 ring-indigo-100">
+                    {docRef}
+                  </span>
+                  <p className="mt-2 text-[10px] text-slate-500">พิมพ์เมื่อ</p>
+                  <p className="whitespace-nowrap text-xs font-semibold text-slate-900">
+                    {formatDateTimeShort(printedAt)}
+                  </p>
+                </div>
               </div>
-              <div className="text-right text-xs text-slate-600">
-                <p>
-                  พิมพ์เมื่อ <span className="font-semibold">{formatDateTime(printedAt)}</span>
-                </p>
-                <p className="mt-0.5">
-                  ทั้งหมด <span className="font-semibold">{summary.total}</span> รายการ
-                </p>
-              </div>
+            </header>
+
+            {/* === Meta info cards === */}
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              <MetaCard label="ผู้จัดทำ" value={user.name} />
+              <MetaCard label="อีเมล" value={user.email} muted />
+              <MetaCard
+                label="ช่วงเวลา"
+                value={
+                  <>
+                    <span className="whitespace-nowrap">{formatDateShort(fromD)}</span>
+                    <span className="mx-1.5 text-slate-300">—</span>
+                    <span className="whitespace-nowrap">{formatDateShort(toD)}</span>
+                    <span className="ml-2 inline-block rounded-full bg-indigo-100 px-2 py-0.5 text-[9px] font-semibold text-indigo-700">
+                      {modeLabel}
+                    </span>
+                  </>
+                }
+              />
             </div>
 
-            <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 px-4 py-3 print:border print:border-slate-300 print:bg-white">
-              <CalendarRange className="h-4 w-4 text-brand-600" />
-              <span className="text-sm">
-                ช่วง <span className="font-semibold">{modeLabel}</span>: ตั้งแต่{' '}
-                <span className="font-semibold">{formatDate(fromD)}</span> ถึง{' '}
-                <span className="font-semibold">{formatDate(toD)}</span>
+            {/* === Stats — modern soft cards === */}
+            <div className="mt-3 grid grid-cols-5 gap-3">
+              <StatPill label="งานทั้งหมด" value={summary.total} tone="indigo" />
+              <StatPill label="เสร็จแล้ว" value={summary.done} tone="emerald" />
+              <StatPill label="ค้าง" value={summary.pending} tone="amber" />
+              <StatPill label="เลยกำหนด" value={summary.overdue} tone="rose" />
+              <StatPill label="ความคืบหน้า" value={`${summary.avg}%`} tone="violet" />
+            </div>
+
+            {/* === Section header === */}
+            <div className="mt-5 mb-3 flex items-center gap-3">
+              <span className="h-1 w-8 rounded-full bg-gradient-to-r from-indigo-500 to-pink-500" />
+              <h2 className="text-base font-bold tracking-tight text-slate-900">
+                รายการงาน
+              </h2>
+              <span className="ml-auto rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                {filtered.length} รายการ
               </span>
             </div>
-          </header>
 
-          {/* Summary */}
-          <section className="my-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
-            <StatBox icon={ListChecks} label="ทั้งหมด" value={summary.total} tone="brand" />
-            <StatBox icon={CheckCircle2} label="เสร็จแล้ว" value={summary.done} tone="emerald" />
-            <StatBox icon={Clock} label="ค้าง" value={summary.pending} tone="amber" />
-            <StatBox icon={Clock} label="เลยกำหนด" value={summary.overdue} tone="rose" />
-            <StatBox
-              icon={TrendingUp}
-              label="ความคืบหน้ารวม"
-              value={`${summary.avg}%`}
-              tone="violet"
-            />
-          </section>
-
-          {/* Tasks */}
-          {filtered.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-300 p-12 text-center text-sm text-slate-500">
-              ไม่มีข้อมูลในช่วงที่เลือก
-            </div>
-          ) : (
-            <div className="space-y-5">
-              {groups.map((g) => (
-                <section key={g.label || 'all'} className="break-inside-avoid">
-                  {g.label && (
-                    <h3 className="mb-2 flex items-center gap-2 border-b border-slate-200 pb-1 text-sm font-bold text-brand-700">
-                      <CalendarRange className="h-3.5 w-3.5" />
-                      {g.label}
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700">
-                        {g.tasks.length} งาน
-                      </span>
-                    </h3>
-                  )}
-                  <table className="w-full text-[11px]">
-                    <thead>
-                      <tr className="border-b-2 border-slate-300 bg-slate-50 text-left text-[10px] font-bold uppercase tracking-wider text-slate-600 print:bg-slate-100">
-                        <th className="px-2 py-1.5 w-8 text-center">#</th>
-                        <th className="px-2 py-1.5">การกิจ / งาน</th>
-                        <th className="px-2 py-1.5 w-24">ประเภท</th>
-                        <th className="px-2 py-1.5 w-20">ความสำคัญ</th>
-                        <th className="px-2 py-1.5 w-24">Deadline</th>
-                        <th className="px-2 py-1.5 w-20">วันที่เสร็จ</th>
-                        <th className="px-2 py-1.5 w-20">สถานะ</th>
-                        <th className="px-2 py-1.5 w-12 text-right">%</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {g.tasks.map((t, i) => {
-                        const status = STATUS_META[t.status]
-                        const prio = PRIORITY_META[t.priority]
-                        const logsInRange = showLogs
-                          ? (t.logs ?? [])
-                              .filter((log) => {
-                                const ld = new Date(log.date)
-                                if (fromD && ld < fromD) return false
-                                if (toD && ld > toD) return false
-                                return true
-                              })
-                              .sort(
-                                (a, b) =>
-                                  new Date(a.date).getTime() - new Date(b.date).getTime(),
-                              )
-                          : []
-                        return (
-                          <Fragment key={t.id}>
-                            <tr
-                              className={cn(
-                                'border-b border-slate-200 align-top',
-                                logsInRange.length > 0 && 'border-b-0',
-                              )}
-                            >
-                              <td className="px-2 py-1.5 text-center font-bold text-slate-500">
-                                {i + 1}
-                              </td>
-                              <td className="px-2 py-1.5">
-                                <p
-                                  className={cn(
-                                    'font-medium text-slate-900',
-                                    t.status === 'DONE' && 'line-through text-slate-500',
-                                  )}
-                                >
-                                  {t.title}
-                                </p>
-                                {t.description && (
-                                  <p className="mt-0.5 line-clamp-2 text-[10px] text-slate-500">
-                                    {t.description}
-                                  </p>
+            {/* === Tasks === */}
+            {filtered.length === 0 ? (
+              <div className="rounded-2xl bg-slate-50 p-12 text-center text-sm text-slate-400">
+                ไม่มีข้อมูลในช่วงที่เลือก
+              </div>
+            ) : (
+              <div className="space-y-5">
+                {groups.map((g) => (
+                  <section key={g.label || 'all'}>
+                    {g.label && (
+                      <div className="mb-2 flex items-center gap-2">
+                        <span className="grid h-6 min-w-6 place-items-center rounded-full bg-gradient-to-br from-indigo-500 to-pink-500 px-1.5 text-[10px] font-bold text-white shadow-sm">
+                          {g.tasks.length}
+                        </span>
+                        <h3 className="text-sm font-bold text-slate-800">{g.label}</h3>
+                        <div className="ml-1 h-px flex-1 bg-gradient-to-r from-slate-200 to-transparent" />
+                      </div>
+                    )}
+                    <div className="overflow-hidden rounded-2xl ring-1 ring-slate-200/80 print:rounded-xl">
+                      <table className="w-full border-collapse text-[10.5px]">
+                        <thead>
+                          <tr className="bg-gradient-to-r from-slate-50 to-slate-100 text-left text-[9px] font-bold uppercase tracking-wider text-slate-600">
+                            <th className="w-8 px-3 py-2.5 text-center">#</th>
+                            <th className="px-3 py-2.5">การกิจ / งาน</th>
+                            <th className="w-20 px-3 py-2.5">Deadline</th>
+                            <th className="w-20 px-3 py-2.5">วันที่เสร็จ</th>
+                            <th className="w-20 px-3 py-2.5">สถานะ</th>
+                            <th className="w-12 px-3 py-2.5 text-right">%</th>
+                          </tr>
+                        </thead>
+                        {g.tasks.map((t, i) => {
+                          const status = STATUS_META[t.status]
+                          const logsInRange = showLogs
+                            ? (t.logs ?? [])
+                                .filter((log) => {
+                                  const ld = new Date(log.date)
+                                  if (fromD && ld < fromD) return false
+                                  if (toD && ld > toD) return false
+                                  return true
+                                })
+                                .sort(
+                                  (a, b) =>
+                                    new Date(a.date).getTime() - new Date(b.date).getTime(),
+                                )
+                            : []
+                          const isLast = i === g.tasks.length - 1
+                          return (
+                            <tbody key={t.id} className="task-row">
+                              <tr
+                                className={cn(
+                                  'align-top transition',
+                                  !isLast || logsInRange.length > 0
+                                    ? 'border-b border-slate-100'
+                                    : '',
                                 )}
-                              </td>
-                              <td className="px-2 py-1.5 text-slate-700">
-                                {t.category || '—'}
-                              </td>
-                              <td className="px-2 py-1.5">
-                                <span
-                                  className={cn(
-                                    'inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold',
-                                    REPORT_PRIORITY_CHIP[t.priority],
-                                  )}
-                                >
-                                  {prio.label}
-                                </span>
-                              </td>
-                              <td className="px-2 py-1.5 text-slate-700">
-                                {t.dueDate ? formatDate(t.dueDate) : '—'}
-                              </td>
-                              <td className="px-2 py-1.5 text-slate-700">
-                                {t.completedAt ? formatDate(t.completedAt) : '—'}
-                              </td>
-                              <td className="px-2 py-1.5">
-                                <span
-                                  className={cn(
-                                    'inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold',
-                                    REPORT_STATUS_CHIP[t.status],
-                                  )}
-                                >
-                                  {status.label}
-                                </span>
-                              </td>
-                              <td className="px-2 py-1.5 text-right font-bold text-slate-700">
-                                {progressForStatus(t.status)}%
-                              </td>
-                            </tr>
-                            {logsInRange.length > 0 && (
-                              <tr className="border-b border-slate-200">
-                                <td></td>
-                                <td colSpan={7} className="px-2 pb-2 pt-0">
-                                  <div className="ml-1 rounded-md border-l-2 border-brand-300 bg-brand-50/40 px-3 py-1.5 print:bg-white">
-                                    <p className="mb-1 flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-brand-700">
-                                      <NotebookPen className="h-2.5 w-2.5" />
-                                      บันทึก ({logsInRange.length})
+                              >
+                                <td className="px-3 py-2.5 text-center font-bold text-slate-400">
+                                  {String(i + 1).padStart(2, '0')}
+                                </td>
+                                <td className="px-3 py-2.5">
+                                  <p
+                                    className={cn(
+                                      'font-semibold text-slate-900',
+                                      t.status === 'DONE' &&
+                                        'line-through text-slate-400',
+                                    )}
+                                  >
+                                    {t.title}
+                                  </p>
+                                  {t.description && (
+                                    <p className="mt-0.5 line-clamp-2 text-[9.5px] text-slate-500">
+                                      {t.description}
                                     </p>
-                                    <ul className="space-y-0.5">
-                                      {logsInRange.map((log) => (
-                                        <li
-                                          key={log.id}
-                                          className="flex gap-1.5 text-[10px] leading-snug"
-                                        >
-                                          <span className="shrink-0 font-bold text-brand-700">
-                                            {formatDate(log.date)} —
-                                          </span>
-                                          <span className="text-slate-700 whitespace-pre-wrap">
-                                            {log.note}
-                                          </span>
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </div>
+                                  )}
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-2.5 text-slate-600">
+                                  {t.dueDate ? formatDateShort(t.dueDate) : '—'}
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-2.5 text-slate-600">
+                                  {t.completedAt ? formatDateShort(t.completedAt) : '—'}
+                                </td>
+                                <td className="px-3 py-2.5">
+                                  <span
+                                    className={cn(
+                                      'inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[9px] font-semibold',
+                                      REPORT_STATUS_CHIP[t.status],
+                                    )}
+                                  >
+                                    <span
+                                      className={cn(
+                                        'h-1.5 w-1.5 rounded-full',
+                                        t.status === 'TODO' && 'bg-slate-400',
+                                        t.status === 'IN_PROGRESS' && 'bg-amber-500',
+                                        t.status === 'FOLLOW_UP' && 'bg-violet-500',
+                                        t.status === 'DONE' && 'bg-emerald-500',
+                                      )}
+                                    />
+                                    {status.label}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2.5 text-right">
+                                  <span
+                                    className={cn(
+                                      'inline-block rounded-md px-1.5 py-0.5 text-[10px] font-bold',
+                                      progressForStatus(t.status) === 100
+                                        ? 'bg-emerald-50 text-emerald-700'
+                                        : progressForStatus(t.status) >= 50
+                                          ? 'bg-indigo-50 text-indigo-700'
+                                          : 'bg-slate-50 text-slate-600',
+                                    )}
+                                  >
+                                    {progressForStatus(t.status)}%
+                                  </span>
                                 </td>
                               </tr>
-                            )}
-                          </Fragment>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </section>
-              ))}
-            </div>
-          )}
+                              {logsInRange.length > 0 && (
+                                <tr
+                                  className={cn(
+                                    !isLast && 'border-b border-slate-100',
+                                  )}
+                                >
+                                  <td></td>
+                                  <td colSpan={5} className="px-3 pb-3 pt-0">
+                                    <div className="rounded-xl bg-gradient-to-br from-indigo-50/70 to-pink-50/40 p-3">
+                                      <p className="mb-1.5 flex items-center gap-1.5 text-[9.5px] font-bold uppercase tracking-wider text-indigo-700">
+                                        <NotebookPen className="h-3 w-3" />
+                                        บันทึกประจำวัน
+                                        <span className="rounded-full bg-white/80 px-1.5 py-0.5 text-[9px] text-indigo-600">
+                                          {logsInRange.length}
+                                        </span>
+                                      </p>
+                                      <ul className="space-y-1">
+                                        {logsInRange.map((log) => (
+                                          <li
+                                            key={log.id}
+                                            className="flex gap-2 text-[10px] leading-snug"
+                                          >
+                                            <span className="shrink-0 whitespace-nowrap rounded-md bg-white/70 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700 shadow-sm">
+                                              {formatDateShort(log.date)}
+                                            </span>
+                                            <span className="text-slate-700 whitespace-pre-wrap pt-0.5">
+                                              {log.note}
+                                            </span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          )
+                        })}
+                      </table>
+                    </div>
+                  </section>
+                ))}
+              </div>
+            )}
 
-          <footer className="mt-6 border-t border-slate-200 pt-3 text-center text-[10px] text-slate-500">
-            สร้างโดย Smart To-Do List · {formatDateTime(printedAt)}
-          </footer>
+            <div className="flex-1" />
+
+            {/* === Footer === */}
+            <footer className="mt-6 pt-4">
+              <div className="h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
+              <div className="mt-3 flex items-center justify-between text-[9.5px] text-slate-500">
+                <div className="flex items-center gap-1.5">
+                  <span className="grid h-4 w-4 place-items-center rounded bg-gradient-to-br from-indigo-500 to-pink-500 text-[8px] font-bold text-white">
+                    ✓
+                  </span>
+                  <span className="font-semibold text-slate-700">Smart To-Do List</span>
+                  <span className="text-slate-300">·</span>
+                  <span>{docRef}</span>
+                </div>
+                <div>
+                  <span>{user.name}</span>
+                  <span className="mx-1.5 text-slate-300">·</span>
+                  <span>{formatDateTimeShort(printedAt)}</span>
+                </div>
+              </div>
+            </footer>
+          </div>
         </article>
       </main>
     </div>
   )
 }
 
-function StatBox({
-  icon: Icon,
+function MetaCard({
+  label,
+  value,
+  muted = false,
+}: {
+  label: string
+  value: React.ReactNode
+  muted?: boolean
+}) {
+  return (
+    <div className="rounded-2xl bg-slate-50/80 px-4 py-2.5 ring-1 ring-slate-200/70 print:rounded-xl">
+      <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500">
+        {label}
+      </p>
+      <p
+        className={cn(
+          'mt-0.5 text-[11px] font-semibold leading-snug',
+          muted ? 'text-slate-600' : 'text-slate-900',
+        )}
+      >
+        {value}
+      </p>
+    </div>
+  )
+}
+
+function StatPill({
   label,
   value,
   tone,
 }: {
-  icon: React.ComponentType<{ className?: string }>
   label: string
   value: number | string
-  tone: 'brand' | 'emerald' | 'amber' | 'rose' | 'violet'
+  tone: 'indigo' | 'emerald' | 'amber' | 'rose' | 'violet'
 }) {
   const tones = {
-    brand: 'border-brand-200 bg-brand-50 text-brand-700',
-    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    amber: 'border-amber-200 bg-amber-50 text-amber-700',
-    rose: 'border-rose-200 bg-rose-50 text-rose-700',
-    violet: 'border-violet-200 bg-violet-50 text-violet-700',
+    indigo: 'from-indigo-50 to-indigo-100/40 ring-indigo-200/60 text-indigo-700',
+    emerald: 'from-emerald-50 to-emerald-100/40 ring-emerald-200/60 text-emerald-700',
+    amber: 'from-amber-50 to-amber-100/40 ring-amber-200/60 text-amber-700',
+    rose: 'from-rose-50 to-rose-100/40 ring-rose-200/60 text-rose-700',
+    violet: 'from-violet-50 to-violet-100/40 ring-violet-200/60 text-violet-700',
   }
   return (
-    <div className={cn('rounded-xl border p-2.5', tones[tone])}>
-      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider">
-        <Icon className="h-3 w-3" />
+    <div
+      className={cn(
+        'rounded-2xl bg-gradient-to-br px-3 py-3 text-center ring-1 print:rounded-xl',
+        tones[tone],
+      )}
+    >
+      <p className="text-[9px] font-semibold uppercase tracking-wider opacity-80">
         {label}
-      </div>
-      <p className="mt-0.5 text-xl font-bold">{value}</p>
+      </p>
+      <p className="mt-0.5 text-2xl font-extrabold tracking-tight">{value}</p>
     </div>
   )
 }

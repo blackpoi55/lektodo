@@ -129,44 +129,70 @@ input[type='number'] {
   -moz-appearance: textfield;
 }
 
-/* Report A4 sheet */
+/* Report A4 sheet (preview on screen) */
 .report-sheet {
   width: 210mm;
   min-height: 297mm;
-  padding: 14mm 12mm;
+  padding: 16mm 14mm 18mm;
   box-sizing: border-box;
 }
 
 @page {
   size: A4 portrait;
-  margin: 10mm;
+  margin: 10mm 10mm;
 }
 
 @media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
   html,
   body {
     background: #fff !important;
     color: #000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
   }
+
   body {
     background-image: none !important;
   }
-  .no-print {
+
+  .no-print,
+  .no-print * {
     display: none !important;
   }
+
+  /* Force every wrapper to release width constraints */
+  body > div,
+  main {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
   .report-sheet {
     box-shadow: none !important;
     width: 100% !important;
+    max-width: 100% !important;
     min-height: 0 !important;
-    padding: 0 !important;
+    padding: 3mm 2mm 4mm !important;
+    margin: 0 !important;
   }
-  /* avoid page break inside cards/sections */
+
+  /* Pagination — tbody groups stay together (task + its logs) */
   table {
+    width: 100% !important;
     page-break-inside: auto;
-  }
-  tr {
-    page-break-inside: avoid;
-    page-break-after: auto;
+    break-inside: auto;
+    border-collapse: collapse;
   }
   thead {
     display: table-header-group;
@@ -174,7 +200,31 @@ input[type='number'] {
   tfoot {
     display: table-footer-group;
   }
+  tbody.task-row {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Headings: keep with following content */
+  h1,
+  h2,
+  h3,
+  h4 {
+    page-break-after: avoid;
+    break-after: avoid-page;
+  }
+
+  /* Generic helper */
   .break-inside-avoid {
     page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .break-before-page {
+    page-break-before: always;
+    break-before: page;
   }
 }

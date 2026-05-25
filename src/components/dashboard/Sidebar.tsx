@@ -30,8 +30,8 @@ export default function Sidebar({
     return arr
   }, [taskList, now])
 
-  const within3Days = upcoming.filter((t) => t.msLeft >= 0 && t.msLeft <= 3 * DAY).length
-  const list = upcoming.slice(0, 6)
+  const within7Days = upcoming.filter((t) => t.msLeft >= 0 && t.msLeft <= 7 * DAY).length
+  const list = upcoming.filter((t) => t.msLeft >= 0 && t.msLeft <= 7 * DAY).slice(0, 6)
 
   const doneCount = taskList.filter((t) => t.status === 'DONE').length
 
@@ -39,7 +39,7 @@ export default function Sidebar({
     <div className="space-y-3">
       {/* Top: 2 mini cards */}
       <div className="grid grid-cols-2 gap-3">
-        <DeadlineCard count={within3Days} />
+        <DeadlineCard count={within7Days} />
         <ProgressCard percent={completion} done={doneCount} total={taskList.length} />
       </div>
 
@@ -90,7 +90,7 @@ export default function Sidebar({
                           ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-200'
                           : daysLeft <= 1
                             ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-200'
-                            : daysLeft <= 3
+                            : daysLeft <= 7
                               ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200'
                               : 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300',
                       )}
@@ -122,7 +122,7 @@ function DeadlineCard({ count }: { count: number }) {
         งานใกล้ Deadline
       </p>
       <p className="mt-1 text-3xl font-bold text-slate-900 dark:text-white">{count}</p>
-      <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">ภายใน 3 วัน</p>
+      <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{'\u0e20\u0e32\u0e22\u0e43\u0e19 7 \u0e27\u0e31\u0e19'}</p>
     </div>
   )
 }

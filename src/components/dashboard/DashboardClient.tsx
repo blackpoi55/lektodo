@@ -15,14 +15,6 @@ const Tooltip = dynamic(
   { ssr: false },
 )
 
-function isSameDay(a: Date, b: Date) {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  )
-}
-
 type DashboardClientProps = {
   serverNow: number
   user: { name: string; email: string }
@@ -69,22 +61,6 @@ export default function DashboardClient(rawProps?: Partial<DashboardClientProps>
     return Math.round(sum / taskList.length)
   }, [taskList])
 
-  const today = new Date(now)
-  const todayTasks = useMemo(() => {
-    return taskList
-      .filter((t) => {
-        if (t.status === 'DONE') return false
-        if (!t.dueDate) return false
-        const due = new Date(t.dueDate)
-        return isSameDay(due, today) || isOverdueAt(t.dueDate, false, now)
-      })
-      .sort((a, b) => {
-        const ad = a.dueDate ? new Date(a.dueDate).getTime() : Infinity
-        const bd = b.dueDate ? new Date(b.dueDate).getTime() : Infinity
-        return ad - bd
-      })
-  }, [taskList, now, today])
-
   return (
     <div className="min-h-screen">
       <DashboardHeader user={user} onAdd={() => setShowAdd(true)} />
@@ -99,14 +75,6 @@ export default function DashboardClient(rawProps?: Partial<DashboardClientProps>
 
         <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
           <div className="space-y-5 min-w-0">
-            <TaskTable
-              title="งานที่ต้องทำวันนี้"
-              tasks={todayTasks}
-              now={now}
-              onEdit={(t) => setEditing(t)}
-              emptyText="วันนี้ยังไม่มีงานครบกำหนด 🎉"
-              accent="amber"
-            />
 
             <div className="lg:hidden">
               <Sidebar
@@ -125,6 +93,7 @@ export default function DashboardClient(rawProps?: Partial<DashboardClientProps>
               onAdd={() => setShowAdd(true)}
               showDaysLeft
               showProgress
+              showControls
               emptyText="ยังไม่มีงาน — กดปุ่ม + เพื่อเพิ่มงานแรก"
               accent="brand"
             />

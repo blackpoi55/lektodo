@@ -3,7 +3,7 @@
 import { deleteTaskAction, setTaskStatusAction } from '@/actions/tasks'
 import { cn, formatDateShort, isOverdueAt } from '@/lib/utils'
 import { Check, ChevronDown, ChevronRight, NotebookPen, Pencil, Plus, Trash2 } from 'lucide-react'
-import { Fragment, useState, useTransition } from 'react'
+import { Fragment, useMemo, useState, useTransition } from 'react'
 import { TaskStatus } from '@prisma/client'
 import { confirmDelete, toast } from '@/components/ui/toast'
 import { Donut } from './Sidebar'
@@ -17,6 +17,22 @@ import {
 } from './types'
 
 const DAY = 86400000
+type TaskFilter = 'all' | 'open' | 'done' | 'overdue'
+type TaskSort = 'due-asc' | 'start-asc' | 'updated-desc' | 'title-asc'
+
+const FILTER_OPTIONS: { value: TaskFilter; label: string }[] = [
+  { value: 'all', label: 'ทั้งหมด' },
+  { value: 'open', label: 'ค้างอยู่' },
+  { value: 'done', label: 'เสร็จแล้ว' },
+  { value: 'overdue', label: 'เลยกำหนด' },
+]
+
+const SORT_OPTIONS: { value: TaskSort; label: string }[] = [
+  { value: 'due-asc', label: 'ใกล้ Deadline' },
+  { value: 'start-asc', label: 'วันเริ่มก่อน' },
+  { value: 'updated-desc', label: 'อัปเดตล่าสุด' },
+  { value: 'title-asc', label: 'ชื่อ A-Z' },
+]
 
 export default function TaskTable({
   title,
@@ -27,6 +43,7 @@ export default function TaskTable({
   emptyText = 'ยังไม่มีงาน',
   showDaysLeft = false,
   showProgress = false,
+  showControls = false,
   accent = 'brand',
 }: {
   title: string
@@ -37,11 +54,15 @@ export default function TaskTable({
   emptyText?: string
   showDaysLeft?: boolean
   showProgress?: boolean
+  showControls?: boolean
   accent?: 'brand' | 'amber'
 }) {
   const taskList = Array.isArray(tasks) ? tasks : []
   const [pending, startTransition] = useTransition()
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [filterBy, setFilterBy] = useState<TaskFilter>('all')
+  const [sortBy, setSortBy] = useState<TaskSort>('due-asc')
+  const [hideCompleted, setHideCompleted] = useState(true)
 
   const toggleExpand = (id: string) => {
     setExpanded((prev) => {
@@ -89,33 +110,88 @@ export default function TaskTable({
   const titleColor =
     accent === 'amber' ? 'text-amber-700 dark:text-amber-200' : 'text-brand-700 dark:text-brand-200'
 
+  const visibleTasks = useMemo(() => {
+    const filtered = taskList.filter((t) => {
+      if (hideCompleted && t.status === 'DONE') return false
+      if (filterBy === 'done') return t.status === 'DONE'
+      if (filterBy === 'open') return t.status !== 'DONE'
+      if (filterBy === 'overdue') return isOverdueAt(t.dueDate, t.status === 'DONE', now)
+      return true
+    })
+
+    const dateValue = (value: string | null) =>
+      value ? new Date(value).getTime() : Number.POSITIVE_INFINITY
+
+    return [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case 'title-asc':
+          return a.title.localeCompare(b.title, 'th')
+        case 'updated-desc':
+          return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        case 'start-asc':
+          return dateValue(a.startDate) - dateValue(b.startDate)
+        case 'due-asc':
+        default:
+          return dateValue(a.dueDate) - dateValue(b.dueDate)
+      }
+    })
+  }, [filterBy, hideCompleted, now, sortBy, taskList])
+
   const colCount = 5 + (showProgress ? 1 : 0) + 1
 
   return (
     <section className="glass overflow-hidden rounded-2xl">
-      <div className={cn('flex items-center justify-between px-4 py-3', headerBg)}>
-        <div className="flex items-center gap-2">
-          <ChevronRight className={cn('h-4 w-4', titleColor)} />
-          <h2 className={cn('text-sm font-bold sm:text-base', titleColor)}>{title}</h2>
-          <span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-bold text-slate-700 dark:bg-white/15 dark:text-slate-200">
-            {taskList.length}
-          </span>
+      <div className={cn('px-4 py-3', headerBg)}>
+        {/* Title row */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <ChevronRight className={cn('h-4 w-4 shrink-0', titleColor)} />
+            <h2 className={cn('truncate text-sm font-bold sm:text-base', titleColor)}>
+              {title}
+            </h2>
+            <span className="shrink-0 rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-bold text-slate-700 dark:bg-white/15 dark:text-slate-200">
+              {visibleTasks.length}
+            </span>
+          </div>
+          {onAdd && (
+            <button
+              onClick={onAdd}
+              className="btn-primary shrink-0 !px-3 !py-1.5 !text-xs"
+              data-tooltip-id="tt"
+              data-tooltip-content="เพิ่มงานใหม่"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">เพิ่มงาน</span>
+            </button>
+          )}
         </div>
-        {onAdd && (
-          <button
-            onClick={onAdd}
-            className="btn-primary !px-3 !py-1.5 !text-xs"
-            data-tooltip-id="tt"
-            data-tooltip-content="เพิ่มงานใหม่"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            เพิ่มงาน
-          </button>
+
+        {/* Controls row */}
+        {showControls && taskList.length > 0 && (
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+            <HideToggle checked={hideCompleted} onChange={setHideCompleted} />
+            <FancySelect
+              value={filterBy}
+              onChange={(v) => setFilterBy(v as TaskFilter)}
+              options={FILTER_OPTIONS}
+              prefix="แสดง"
+              className="min-w-[140px] flex-1 sm:flex-initial"
+            />
+            <FancySelect
+              value={sortBy}
+              onChange={(v) => setSortBy(v as TaskSort)}
+              options={SORT_OPTIONS}
+              prefix="เรียง"
+              className="min-w-[160px] flex-1 sm:flex-initial"
+            />
+          </div>
         )}
       </div>
 
       {taskList.length === 0 ? (
         <div className="p-8 text-center text-sm text-slate-400">{emptyText}</div>
+      ) : visibleTasks.length === 0 ? (
+        <div className="p-8 text-center text-sm text-slate-400">ไม่พบงานตามตัวกรองที่เลือก</div>
       ) : (
         <>
           <div className="hidden overflow-x-auto md:block">
@@ -132,7 +208,7 @@ export default function TaskTable({
                 </tr>
               </thead>
               <tbody>
-                {taskList.map((t, i) => {
+                {visibleTasks.map((t, i) => {
                   const isOpen = expanded.has(t.id)
                   const overdue = isOverdueAt(t.dueDate, t.status === 'DONE', now)
                   const status = STATUS_META[t.status]
@@ -318,7 +394,7 @@ export default function TaskTable({
           </div>
 
           <ul className="divide-y divide-slate-100 dark:divide-white/5 md:hidden">
-            {taskList.map((t, i) => {
+            {visibleTasks.map((t, i) => {
               const isOpen = expanded.has(t.id)
               const overdue = isOverdueAt(t.dueDate, t.status === 'DONE', now)
               const status = STATUS_META[t.status]
@@ -495,4 +571,88 @@ function DaysLeftPill({ days }: { days: number }) {
   const label = overdue ? `เลย ${Math.abs(days)} วัน` : days === 0 ? 'วันนี้' : `เหลือ ${days} วัน`
 
   return <span className={cn('inline-flex rounded-lg px-2 py-1 text-[10px] font-bold', tone)}>{label}</span>
+}
+
+function HideToggle({
+  checked,
+  onChange,
+}: {
+  checked: boolean
+  onChange: (v: boolean) => void
+}) {
+  return (
+    <label
+      className={cn(
+        'group inline-flex cursor-pointer select-none items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold shadow-sm transition',
+        'border',
+        checked
+          ? 'border-brand-300 bg-brand-50 text-brand-700 dark:border-brand-500/40 dark:bg-brand-500/15 dark:text-brand-200'
+          : 'border-white/60 bg-white/80 text-slate-700 hover:border-brand-300 hover:bg-white dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:border-brand-400/40',
+      )}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="peer sr-only"
+      />
+      <span
+        className={cn(
+          'relative grid h-4 w-7 shrink-0 place-items-center rounded-full transition',
+          checked ? 'bg-gradient-to-r from-brand-500 to-pink-500 shadow-inner' : 'bg-slate-300 dark:bg-white/15',
+        )}
+      >
+        <span
+          className={cn(
+            'absolute left-0.5 top-0.5 grid h-3 w-3 place-items-center rounded-full bg-white shadow transition',
+            checked && 'translate-x-3',
+          )}
+        >
+          {checked && <Check className="h-2 w-2 text-brand-600" strokeWidth={3.5} />}
+        </span>
+      </span>
+      <span className="whitespace-nowrap">ซ่อนที่เสร็จ</span>
+    </label>
+  )
+}
+
+function FancySelect<T extends string>({
+  value,
+  onChange,
+  options,
+  prefix,
+  className,
+}: {
+  value: T
+  onChange: (v: T) => void
+  options: { value: T; label: string }[]
+  prefix?: string
+  className?: string
+}) {
+  return (
+    <div className={cn('relative', className)}>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value as T)}
+        className={cn(
+          'w-full cursor-pointer appearance-none rounded-xl border border-white/60 bg-white/80 py-2 pr-8 text-xs font-semibold text-slate-800 shadow-sm outline-none transition',
+          'hover:border-brand-300 hover:bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20',
+          'dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-100 dark:hover:border-brand-400/40',
+          prefix ? 'pl-[68px]' : 'pl-3',
+        )}
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      {prefix && (
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:bg-white/10 dark:text-slate-400">
+          {prefix}
+        </span>
+      )}
+      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+    </div>
+  )
 }
